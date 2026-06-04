@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Number Gesture Duel - เกมเปรียบเทียบจำนวน</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- MediaPipe Hands & Camera -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
+    /* สไตล์สำหรับการโหลดระบบกล้อง */
+    .loader {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // --- Inline SVGs แทนการดาวน์โหลดภายนอก ---
+    const IconHeart = ({ className }) => <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
+    const IconHeartCrack = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="m12 13-1-3 2-2-2-2"/></svg>;
+    const IconSettings = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+    const IconPlay = ({ className }) => <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" className={className}><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+    const IconRotateCcw = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
+    const IconVolume2 = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>;
+    const IconVolumeX = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="17" y1="9" y2="15"/><line x1="17" x2="23" y1="9" y2="15"/></svg>;
+    const IconTimer = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>;
+    const IconMedal = ({ className }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className}><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/><path d="M12 18v-2h-.5"/></svg>;
+
+    // --- Audio Synthesizer System (8-bit) ---
+    const AudioSys = {
+      ctx: null, bgmInterval: null, isMuted: false,
+      init() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      },
+      playSFX(type) {
+        if (this.isMuted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        if (type === 'correct') {
+          osc.type = 'sine'; osc.frequency.setValueAtTime(587.33, this.ctx.currentTime); // D5
+          osc.frequency.exponentialRampToValueAtTime(1174.66, this.ctx.currentTime + 0.12); // D6
+          gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+          osc.start(); osc.stop(this.ctx.currentTime + 0.12);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth'; osc.frequency.setValueAtTime(220, this.ctx.currentTime); // A3
+          osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.3);
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+          osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+        }
+      },
+      startBGM() {
+        if (this.bgmInterval || this.isMuted) return;
+        this.init();
+        // 8-bit playful melody
+        const melody = [329.63, 392.00, 523.25, 440.00, 392.00, 523.25, 493.88, 392.00]; // E4, G4, C5, A4, G4, C5, B4, G4
+        let i = 0;
+        this.bgmInterval = setInterval(() => {
+          if (this.isMuted) return;
+          const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.type = 'triangle'; 
+          osc.frequency.value = melody[i % melody.length];
+          gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+          osc.start(); osc.stop(this.ctx.currentTime + 0.25);
+          i++;
+        }, 300);
+      },
+      stopBGM() {
+        if (this.bgmInterval) { clearInterval(this.bgmInterval); this.bgmInterval = null; }
+      },
+      toggleMute() {
+        this.isMuted = !this.isMuted;
+        if (this.isMuted) this.stopBGM(); else this.startBGM();
+        return this.isMuted;
+      }
+    };
+
+    function App() {
+      const [gameState, setGameState] = useState('menu');
+      const [scriptsLoaded, setScriptsLoaded] = useState(false);
+      const [isMuted, setIsMuted] = useState(false);
+
+      // ระดับความยากตามโจทย์
+      const [difficulty, setDifficulty] = useState('under_10k'); // under_10k, under_100k, under_1m, over_1m
+      const [timeSetting, setTimeSetting] = useState(60);
+      const [livesSetting, setLivesSetting] = useState(3);
+
+      const [score, setScore] = useState(0);
+      const [timeLeft, setTimeLeft] = useState(60);
+      const [lives, setLives] = useState(3);
+      const [num1, setNum1] = useState(0);
+      const [num2, setNum2] = useState(0);
+      const [feedback, setFeedback] = useState(null);
+      const [detectedGesture, setDetectedGesture] = useState(null);
+
+      const videoRef = useRef(null);
+      const canvasRef = useRef(null);
+      const cameraRef = useRef(null);
+      const handsRef = useRef(null);
+      const isProcessingRef = useRef(false);
+      const handleAnswerRef = useRef(null);
+
+      // ตรวจสอบการโหลดโมเดล MediaPipe
+      useEffect(() => {
+        const checkScripts = setInterval(() => {
+          if (window.Hands && window.Camera) {
+            setScriptsLoaded(true);
+            clearInterval(checkScripts);
+          }
+        }, 500);
+        return () => clearInterval(checkScripts);
+      }, []);
+
+      // ฟังก์ชันสำหรับสร้างตัวเลขตามขอบเขตความยาก
+      const generateNumbers = useCallback(() => {
+        let min, max;
+        if (difficulty === 'under_10k') {
+          min = 100; max = 10000;
+        } else if (difficulty === 'under_100k') {
+          min = 10000; max = 100000;
+        } else if (difficulty === 'under_1m') {
+          min = 100000; max = 1000000;
+        } else { // over_1m (มากกว่าล้าน)
+          min = 1000000; max = 100000000;
+        }
+
+        // สุ่มตัวเลขแรก
+        let n1 = Math.floor(Math.random() * (max - min)) + min;
+        let n2;
+
+        // เพื่อให้ท้าทาย: สุ่มให้ตัวเลขที่สองมีค่าใกล้เคียงกับตัวแรก เพื่อความเร้าใจในการเปรียบเทียบหลัก
+        if (Math.random() < 0.65) {
+          // สุ่มในระยะห่างประมาณ 5% - 20%
+          let variance = Math.floor(n1 * 0.15); 
+          if (variance < 10) variance = 10;
+          do {
+            n2 = n1 + (Math.random() < 0.5 ? 1 : -1) * (Math.floor(Math.random() * variance) + 1);
+          } while (n2 === n1 || n2 < min || n2 > max);
+        } else {
+          // สุ่มแบบอิสระทั่วไป
+          do {
+            n2 = Math.floor(Math.random() * (max - min)) + min;
+          } while (n2 === n1);
+        }
+
+        setNum1(n1);
+        setNum2(n2);
+      }, [difficulty]);
+
+      // ตรวจคำตอบ
+      const handleAnswer = useCallback((gesture) => {
+        if (isProcessingRef.current || gameState !== 'playing') return;
+        isProcessingRef.current = true;
+        setDetectedGesture(gesture);
+
+        let isCorrect = false;
+        if (gesture === '<' && num1 < num2) isCorrect = true;
+        if (gesture === '>' && num1 > num2) isCorrect = true;
+
+        if (isCorrect) {
+          AudioSys.playSFX('correct'); 
+          setFeedback('correct'); 
+          setScore(s => s + 10);
+        } else {
+          AudioSys.playSFX('wrong'); 
+          setFeedback('wrong');
+          if (livesSetting > 0) {
+            setLives(l => {
+              const newLives = l - 1;
+              if (newLives <= 0) setTimeout(() => endGame(), 1000);
+              return newLives;
+            });
+          }
+        }
+
+        // เริ่มคำถามใหม่หลังดีเลย์ 1.2 วินาที
+        setTimeout(() => {
+          setFeedback(null); 
+          setDetectedGesture(null); 
+          isProcessingRef.current = false;
+          setLives(currentLives => {
+            if (gameState === 'playing' && (livesSetting === 0 || currentLives > 0)) generateNumbers();
+            return currentLives;
+          });
+        }, 1200);
+      }, [num1, num2, gameState, livesSetting, generateNumbers]);
+
+      // อัปเดต Reference เพื่อไม่ให้กล้องดับขณะเล่นเกม
+      useEffect(() => { handleAnswerRef.current = handleAnswer; }, [handleAnswer]);
+
+      // โหลดการทำงานของระบบกล้องจับการเคลื่อนไหว
+      useEffect(() => {
+        if (!scriptsLoaded || gameState !== 'playing') {
+          if (cameraRef.current) cameraRef.current.stop();
+          return;
+        }
+
+        const videoElement = videoRef.current;
+        const canvasElement = canvasRef.current;
+        const canvasCtx = canvasElement?.getContext('2d');
+
+        const hands = new window.Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
+
+        hands.onResults((results) => {
+          if (!canvasCtx || !canvasElement) return;
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+          
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const w = canvasElement.width; const h = canvasElement.height;
+            for (const landmarks of results.multiHandLandmarks) {
+              // แสดงพิกัดนิ้วชี้และนิ้วโป้ง
+              canvasCtx.fillStyle = '#10B981';
+              canvasCtx.beginPath();
+              canvasCtx.arc(landmarks[4].x * w, landmarks[4].y * h, 10, 0, 2 * Math.PI);
+              canvasCtx.arc(landmarks[8].x * w, landmarks[8].y * h, 10, 0, 2 * Math.PI);
+              canvasCtx.fill();
+
+              if (!isProcessingRef.current) {
+                const thumbTip = landmarks[4]; const indexTip = landmarks[8];
+                const thumbBase = landmarks[2]; const indexBase = landmarks[5];
+                const tipsDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                
+                // ตรวจว่านิ้วโป้งกับนิ้วชี้ห่างกันพอดี (ไม่ใช่กำหมัด)
+                if (tipsDist > 0.12) { 
+                  const tipsMidX = (thumbTip.x + indexTip.x) / 2;
+                  const baseMidX = (thumbBase.x + indexBase.x) / 2;
+
+                  // ตรวจจับทิศทางเปรียบเทียบ (ผ่านกระจกเงาที่แก้ให้ถูกสลับด้านแล้ว)
+                  if (tipsMidX > baseMidX + 0.05) {
+                    handleAnswerRef.current && handleAnswerRef.current('>'); break;
+                  } else if (tipsMidX < baseMidX - 0.05) {
+                    handleAnswerRef.current && handleAnswerRef.current('<'); break;
+                  }
+                }
+              }
+            }
+          }
+          canvasCtx.restore();
+        });
+
+        handsRef.current = hands;
+        const camera = new window.Camera(videoElement, {
+          onFrame: async () => { if (handsRef.current) await handsRef.current.send({ image: videoElement }); },
+          width: 640, height: 480
+        });
+        camera.start(); cameraRef.current = camera;
+
+        return () => {
+          if (cameraRef.current) cameraRef.current.stop();
+          if (handsRef.current) handsRef.current.close();
+        };
+      }, [scriptsLoaded, gameState]);
+
+      // ระบบจับเวลานับถอยหลัง
+      useEffect(() => {
+        let timer;
+        if (gameState === 'playing' && timeSetting > 0) {
+          timer = setInterval(() => {
+            setTimeLeft((prev) => {
+              if (prev <= 1) { clearInterval(timer); endGame(); return 0; }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+        return () => clearInterval(timer);
+      }, [gameState, timeSetting]);
+
+      const startGame = () => {
+        AudioSys.init(); if (!isMuted) AudioSys.startBGM();
+        setScore(0); setTimeLeft(timeSetting); setLives(livesSetting);
+        setGameState('playing'); setFeedback(null); setDetectedGesture(null);
+        isProcessingRef.current = false; generateNumbers();
+      };
+
+      const endGame = () => {
+        setGameState('gameover'); AudioSys.stopBGM(); AudioSys.playSFX('wrong');
+      };
+
+      const toggleSound = () => { setIsMuted(AudioSys.toggleMute()); };
+
+      if (gameState === 'menu') {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-indigo-700 via-purple-700 to-pink-700 flex flex-col items-center justify-center p-4 font-sans text-white">
+            <div className="bg-slate-900/90 border border-slate-700 backdrop-blur-md p-8 rounded-3xl shadow-2xl max-w-lg w-full text-center">
+              <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-emerald-400 mb-2 drop-shadow-sm">
+                Number Gesture Duel
+              </h1>
+              <h2 className="text-xl text-slate-300 font-bold mb-6">ศึกดวลความเร็วเปรียบเทียบจำนวน</h2>
+              
+              <div className="bg-slate-800/80 p-4 rounded-2xl mb-8 text-left text-sm border border-slate-700 space-y-2">
+                <p className="font-bold text-yellow-400">💡 วิธีเล่นสุดมันส์:</p>
+                <p>1. ยกมือขึ้นมาสองข้างเตรียมพร้อมแบบ <span className="font-bold text-teal-400">"กำปั้น"</span> ไว้ได้เลย</p>
+                <p>2. กางนิ้วมือให้เป็นรูปตัว V ตะแคงเพื่อสร้างเครื่องหมายเปรียบเทียบ:</p>
+                <p className="pl-4">• ทำมุมชี้ไป <span className="text-blue-400 font-bold">ซ้าย (&lt;)</span> เมื่อตัวเลขซ้ายน้อยกว่าขวา</p>
+                <p className="pl-4">• ทำมุมชี้ไป <span className="text-pink-400 font-bold">ขวา (&gt;)</span> เมื่อตัวเลขซ้ายมากกว่าขวา</p>
+              </div>
+
+              <div className="space-y-6 text-left">
+                {/* ขอบเขตระดับจำนวน */}
+                <div>
+                  <label className="flex items-center text-slate-200 font-bold mb-2"><IconSettings className="w-5 h-5 mr-2 text-emerald-400" /> เลือกระดับจำนวน</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'under_10k', label: 'ไม่เกินหมื่น (≤10,000)' },
+                      { id: 'under_100k', label: 'ไม่เกินแสน (≤100,000)' },
+                      { id: 'under_1m', label: 'ไม่เกินล้าน (≤1,000,000)' },
+                      { id: 'over_1m', label: 'มากกว่าล้าน (>1,000,000)' }
+                    ].map(opt => (
+                      <button key={opt.id} onClick={() => setDifficulty(opt.id)} className={`py-3 px-2 rounded-xl text-sm font-bold transition-all ${difficulty === opt.id ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 shadow-md transform scale-[1.02]' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* เวลา */}
+                <div>
+                  <label className="flex items-center text-slate-200 font-bold mb-2"><IconTimer className="w-5 h-5 mr-2 text-teal-400" /> เวลาเล่นเกม</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[30, 60, 90, 0].map(t => (
+                      <button key={t} onClick={() => setTimeSetting(t)} className={`py-2 rounded-xl text-sm font-bold transition-all ${timeSetting === t ? 'bg-indigo-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                        {t === 0 ? 'ไม่จำกัด' : `${t} วิ`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* พลังชีวิต */}
+                <div>
+                  <label className="flex items-center text-slate-200 font-bold mb-2"><IconHeart className="w-5 h-5 mr-2 text-red-400" /> จำนวนหัวใจ (ความผิดพลาด)</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[1, 3, 5, 0].map(l => (
+                      <button key={l} onClick={() => setLivesSetting(l)} className={`py-2 rounded-xl text-sm font-bold transition-all ${livesSetting === l ? 'bg-red-500 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                        {l === 0 ? 'อมตะ ❤️‍🔥' : `${l} ดวง`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={startGame} disabled={!scriptsLoaded} className={`mt-8 w-full py-4 rounded-2xl text-xl font-extrabold text-slate-950 flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 ${!scriptsLoaded ? 'bg-slate-600 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-teal-400 to-emerald-400 shadow-lg shadow-teal-500/20'}`}>
+                {scriptsLoaded ? (
+                  <><IconPlay className="w-6 h-6 mr-2" /> เข้าสู่สนามประชัน!</>
+                ) : (
+                  <span className="flex items-center"><span className="loader mr-3"></span>กำลังเตรียมกล้อง...</span>
+                )}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (gameState === 'playing') {
+        return (
+          <div className="relative h-screen w-screen bg-slate-950 overflow-hidden font-sans text-white">
+            {/* กล้อง Background */}
+            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-30" playsInline autoPlay />
+            {/* Canvas วาดตำแหน่งมือ */}
+            <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none opacity-40" />
+            
+            {/* HUD / หน้าจอควบคุมหลัก */}
+            <div className="absolute inset-0 flex flex-col justify-between p-4 md:p-8 z-10 pointer-events-none">
+              
+              {/* แถบบน: ชีวิต คะแนน เวลา */}
+              <div className="flex justify-between items-start pointer-events-auto">
+                <div className="flex space-x-1 bg-slate-900/60 p-3 rounded-full border border-slate-700/50 backdrop-blur-md">
+                  {livesSetting === 0 ? (
+                    <span className="text-red-400 font-bold flex items-center"><IconHeart className="w-6 h-6 text-red-500 mr-2 animate-pulse" /> โหมดอมตะ</span>
+                  ) : (
+                    Array.from({ length: livesSetting }).map((_, i) => (
+                      i < lives ? <IconHeart key={i} className="w-6 h-6 md:w-8 md:h-8 text-red-500 fill-red-500" /> : <IconHeartCrack key={i} className="w-6 h-6 md:w-8 md:h-8 text-slate-600" />
+                    ))
+                  )}
+                </div>
+                
+                <div className="flex flex-col items-end space-y-2">
+                  <div className="bg-slate-900/60 px-6 py-2 rounded-full border border-slate-700/50 backdrop-blur-md">
+                    <span className="text-yellow-400 font-extrabold text-2xl md:text-3xl">Score: {score}</span>
+                  </div>
+                  {timeSetting > 0 && (
+                    <div className={`px-6 py-2 rounded-full border border-slate-700/50 backdrop-blur-md font-extrabold text-2xl ${timeLeft <= 10 ? 'bg-red-500/80 animate-pulse text-white' : 'bg-slate-900/60 text-white'}`}>
+                      {timeLeft} วินาที
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ปุ่มเปิดปิดเสียง */}
+              <div className="absolute top-4 md:top-8 left-1/2 transform -translate-x-1/2 pointer-events-auto">
+                <button onClick={toggleSound} className="p-3 bg-slate-900/60 border border-slate-700/50 rounded-full hover:bg-slate-800 backdrop-blur-md transition-all">
+                  {isMuted ? <IconVolumeX className="w-6 h-6" /> : <IconVolume2 className="w-6 h-6" />}
+                </button>
+              </div>
+
+              {/* พื้นที่เปรียบเทียบจำนวน */}
+              <div className="flex-1 flex flex-col items-center justify-center relative">
+                <div className="flex flex-col md:flex-row items-center justify-center space-y-6 md:space-y-0 md:space-x-12 bg-slate-900/80 p-8 md:p-12 rounded-[3rem] backdrop-blur-md shadow-2xl border border-slate-700/50 w-full max-w-4xl">
+                  
+                  {/* ตัวเลขฝั่งซ้าย */}
+                  <div className="flex-1 text-center font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-wider drop-shadow-lg">
+                    {num1.toLocaleString('th-TH')}
+                  </div>
+                  
+                  {/* ช่องแสดงเครื่องหมายผลลัพธ์ */}
+                  <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl flex items-center justify-center bg-slate-800 border-4 border-slate-700 shadow-inner relative overflow-hidden transition-all duration-300">
+                    {detectedGesture ? (
+                       <span className={`text-6xl md:text-8xl font-black ${feedback === 'correct' ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.8)]' : feedback === 'wrong' ? 'text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.8)]' : 'text-white'} transform ${feedback === 'correct' ? 'scale-125 animate-bounce' : 'scale-100'}`}>
+                         {detectedGesture}
+                       </span>
+                    ) : (
+                      <span className="text-6xl md:text-8xl text-slate-600 font-black animate-pulse">?</span>
+                    )}
+                    
+                    {feedback === 'correct' && <div className="absolute inset-0 bg-emerald-500/30 animate-ping"></div>}
+                    {feedback === 'wrong' && <div className="absolute inset-0 bg-red-500/30 animate-pulse"></div>}
+                  </div>
+
+                  {/* ตัวเลขฝั่งขวา */}
+                  <div className="flex-1 text-center font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-wider drop-shadow-lg">
+                    {num2.toLocaleString('th-TH')}
+                  </div>
+
+                </div>
+
+                {/* คำอธิบายคำสั่งใต้ตัวเลข */}
+                <div className="mt-10 text-slate-300 font-semibold text-base md:text-lg bg-slate-900/80 border border-slate-700/50 px-6 py-3 rounded-full flex items-center space-x-3 backdrop-blur-md">
+                  <span>✊ กำปั้นเพื่อเตรียมตัว</span>
+                  <span>|</span>
+                  <span>กางนิ้วออกชี้</span>
+                  <span className="font-bold text-xl text-blue-400">&lt; (ซ้าย)</span>
+                  <span>หรือ</span>
+                  <span className="font-bold text-xl text-pink-400">&gt; (ขวา)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // หน้าจอแสดงผลลัพธ์ (Game Over)
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-sans text-white text-center">
+          <IconMedal className="w-24 h-24 text-yellow-400 mb-6 drop-shadow-[0_0_20px_rgba(234,179,8,0.4)]" />
+          <h1 className="text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500">
+            ภารกิจเปรียบเทียบเสร็จสิ้น!
+          </h1>
+          <p className="text-xl mb-8 text-slate-400">ระดับความยากที่คุณเผชิญ: {
+            difficulty === 'under_10k' ? 'ไม่เกินหมื่น' :
+            difficulty === 'under_100k' ? 'ไม่เกินแสน' :
+            difficulty === 'under_1m' ? 'ไม่เกินล้าน' : 'มากกว่าล้าน'
+          }</p>
+          <p className="text-2xl mb-2 text-slate-300 font-semibold">คะแนนรวมที่ได้</p>
+          <div className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-teal-300 to-emerald-500 mb-12 drop-shadow-2xl">
+            {score}
+          </div>
+          <button onClick={() => setGameState('menu')} className="flex items-center px-10 py-5 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-500 hover:to-emerald-500 text-slate-950 rounded-full font-extrabold text-xl transition-transform transform hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(20,184,166,0.3)]">
+            <IconRotateCcw className="w-6 h-6 mr-2" /> ท้าทายอีกรอบ
+          </button>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
